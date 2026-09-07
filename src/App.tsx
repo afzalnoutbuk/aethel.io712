@@ -1,30 +1,89 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { BookOpen, Globe, MessageSquare, Users, ChevronRight, PlayCircle, Star, CheckCircle2, X, Mail, Lock, User, Instagram, Send, Phone, Mic, Headphones, PenTool, ArrowLeft, Bot, BarChart3, Brain, ClipboardCheck, Timer, Calendar, Target, Sparkles, Loader2, BookA, Search, Zap, Award, Download, ShieldCheck, History, Clock } from "lucide-react";
+import { 
+  BookOpen, Globe, MessageSquare, Users, ChevronRight, PlayCircle, Star, CheckCircle2, 
+  X, Mail, Lock, User, Instagram, Send, Phone, Mic, Headphones, PenTool, ArrowLeft, 
+  Bot, BarChart3, Brain, ClipboardCheck, Timer, Calendar, Target, Sparkles, Loader2, 
+  BookA, Search, Zap, Award, Download, ShieldCheck, History, Clock, LogOut, ChevronDown, BadgeCheck
+} from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import AuthModal, { UserProfile } from "./components/AuthModal";
+import WritingApp from "./components/WritingApp";
+import SpeakingApp from "./components/SpeakingApp";
 
 export default function App() {
-  const [isSignUpOpen, setIsSignUpOpen] = useState(false);
-  const [userName, setUserName] = useState<string | null>("Aethel.io");
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('sanjars_active_user');
+      if (saved) return JSON.parse(saved);
+      const legacyName = localStorage.getItem('sanjars_user_name');
+      if (legacyName && legacyName !== 'Aethel.io') {
+        return {
+          id: 'user_active',
+          name: legacyName,
+          username: legacyName.toLowerCase().replace(/\s+/g, '_'),
+          telegramUsername: '@sanjarmultilevel',
+          email: `${legacyName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+          telegramVerified: true,
+          joinedDate: new Date().toLocaleDateString('uz-UZ'),
+          streakDays: 3
+        };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+
+  const userName = currentUser?.name || null;
   const [currentView, setCurrentView] = useState<'landing' | 'learning'>('landing');
 
   const handleStartLearning = () => {
-    if (userName) {
+    if (currentUser) {
       setCurrentView('learning');
     } else {
-      setIsSignUpOpen(true);
+      setAuthMode('signup');
+      setIsAuthOpen(true);
     }
   };
 
+  const handleOpenSignIn = () => {
+    setAuthMode('signin');
+    setIsAuthOpen(true);
+  };
+
+  const handleOpenSignUp = () => {
+    setAuthMode('signup');
+    setIsAuthOpen(true);
+  };
+
+  const handleAuthSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
+    setIsAuthOpen(false);
+    setCurrentView('learning');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('sanjars_active_user');
+    localStorage.removeItem('sanjars_user_name');
+    setCurrentUser(null);
+    setCurrentView('landing');
+  };
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col font-sans">
       <Navbar 
-        onSignUp={() => setIsSignUpOpen(true)} 
-        userName={userName} 
+        onSignIn={handleOpenSignIn}
+        onSignUp={handleOpenSignUp}
+        currentUser={currentUser}
         onDashboard={() => setCurrentView('learning')}
         onHome={() => setCurrentView('landing')}
+        onLogout={handleLogout}
       />
       
       <main className="flex-grow">
@@ -52,7 +111,11 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               transition={{ duration: 0.4 }}
             >
-              <LearningDashboard onBack={() => setCurrentView('landing')} userName={userName} />
+              <LearningDashboard 
+                onBack={() => setCurrentView('landing')} 
+                currentUser={currentUser}
+                onLogout={handleLogout}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -61,13 +124,12 @@ export default function App() {
       <Footer />
 
       <AnimatePresence>
-        {isSignUpOpen && (
-          <SignUpModal 
-            onClose={() => setIsSignUpOpen(false)} 
-            onSuccess={(name) => {
-              setUserName(name);
-              setCurrentView('learning');
-            }}
+        {isAuthOpen && (
+          <AuthModal 
+            isOpen={isAuthOpen}
+            initialMode={authMode}
+            onClose={() => setIsAuthOpen(false)} 
+            onSuccess={handleAuthSuccess}
           />
         )}
       </AnimatePresence>
@@ -75,56 +137,143 @@ export default function App() {
   );
 }
 
-function Navbar({ onSignUp, userName, onDashboard, onHome }: { 
+function Navbar({ 
+  onSignIn, 
+  onSignUp, 
+  currentUser, 
+  onDashboard, 
+  onHome,
+  onLogout
+}: { 
+  onSignIn: () => void; 
   onSignUp: () => void; 
-  userName: string | null;
+  currentUser: UserProfile | null;
   onDashboard: () => void;
   onHome: () => void;
+  onLogout: () => void;
 }) {
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+    <nav className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-slate-100 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
-          <button onClick={onHome} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <button onClick={onHome} className="flex items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer text-left">
             <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-pink-200">
-              <Globe size={24} />
+              <Globe size={22} />
             </div>
             <span className="text-2xl font-display font-bold tracking-tight text-slate-900">
-              Aethel<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">.io</span>
+              Sanjars<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">English</span>
             </span>
           </button>
           
-          <div className="hidden md:flex items-center gap-8">
-            <button onClick={onHome} className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors">Home</button>
-            <a href="#games" className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors">Games</a>
-            <a href="#features" className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors">Features</a>
+          <div className="hidden md:flex items-center gap-6">
+            <button onClick={onHome} className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors cursor-pointer">Bosh sahifa</button>
+            <a href="#features" className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors">Xususiyatlar</a>
+            <a href="#games" className="text-sm font-medium text-slate-600 hover:text-pink-600 transition-colors">Mashqlar</a>
+            <a 
+              href="https://t.me/sanjarmultilevel" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-sm font-medium text-sky-600 hover:text-sky-700 transition-colors flex items-center gap-1 bg-sky-50 px-3 py-1.5 rounded-full border border-sky-100"
+            >
+              <Send size={13} />
+              <span>@sanjarmultilevel</span>
+            </a>
             
-            {userName ? (
+            {currentUser ? (
+              <div className="relative">
+                <button 
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 bg-pink-50 hover:bg-pink-100/80 rounded-full text-slate-800 font-bold text-sm border border-pink-100 transition-all cursor-pointer shadow-2xs"
+                >
+                  <span className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center text-xs font-bold">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span>{currentUser.name}</span>
+                  <BadgeCheck size={16} className="text-sky-500" />
+                  <ChevronDown size={14} className="text-slate-400" />
+                </button>
+
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="px-4 pb-3 border-b border-slate-100">
+                      <p className="font-bold text-slate-900 text-sm">{currentUser.name}</p>
+                      <p className="text-xs text-slate-500 font-mono">{currentUser.telegramUsername}</p>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-1.5">
+                        <CheckCircle2 size={11} /> Telegram Tasdiqlangan
+                      </span>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          onDashboard();
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-600 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Sparkles size={15} className="text-pink-500" />
+                        <span>O'quv xonasi (Dashboard)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          onLogout();
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer"
+                      >
+                        <LogOut size={15} />
+                        <span>Tizimdan chiqish</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <button 
+                  onClick={onSignIn}
+                  className="text-slate-700 hover:text-pink-600 px-4 py-2 rounded-full text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Kirish
+                </button>
+                <button 
+                  onClick={onSignUp}
+                  className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:opacity-90 transition-all shadow-md shadow-pink-200 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Send size={13} />
+                  <span>Ro'yxatdan o'tish</span>
+                </button>
+              </div>
+            )}
+          </div>
+          
+          <div className="md:hidden flex items-center gap-2">
+            {currentUser ? (
               <button 
                 onClick={onDashboard}
-                className="flex items-center gap-2 px-4 py-2 bg-pink-50 rounded-full text-pink-700 font-bold text-sm border border-pink-100 hover:bg-pink-100 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-pink-700 rounded-full text-xs font-bold border border-pink-100"
               >
-                <Star size={16} fill="currentColor" className="text-amber-500" />
-                <span>Dear, {userName}</span>
+                <span>{currentUser.name}</span>
+                <BadgeCheck size={14} className="text-sky-500" />
               </button>
             ) : (
               <button 
                 onClick={onSignUp}
-                className="bg-slate-900 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg active:scale-95"
+                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"
               >
-                Sign In
+                <Send size={11} /> Ro'yxatdan o'tish
               </button>
             )}
           </div>
-          
-          <button className="md:hidden p-2 text-slate-600">
-            <Users size={24} />
-          </button>
         </div>
       </div>
     </nav>
   );
 }
+
 
 function Hero({ onSignUp }: { onSignUp: () => void }) {
   return (
@@ -662,7 +811,7 @@ function Testimonials() {
               {[1, 2, 3, 4, 5].map(i => <Star key={i} size={20} fill="currentColor" />)}
             </div>
             <p className="text-xl font-medium mb-8 leading-relaxed italic">
-              "Aethel.io completely changed how I learn. The AI feedback is incredible, and I felt comfortable speaking from day one. I passed my IELTS with an 8.0 thanks to them!"
+              "SanjarsEnglish completely changed how I learn. The AI feedback is incredible, and I felt comfortable speaking from day one. I passed my IELTS with an 8.0 thanks to them!"
             </p>
             <div className="flex items-center gap-4">
               <img 
@@ -701,13 +850,19 @@ function CTA({ onSignUp }: { onSignUp: () => void }) {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button 
                 onClick={onSignUp}
-                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-10 py-4 rounded-2xl font-bold hover:shadow-lg hover:shadow-pink-500/30 transition-all"
+                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-10 py-4 rounded-2xl font-bold hover:shadow-lg hover:shadow-pink-500/30 transition-all cursor-pointer"
               >
                 Get Started Now
               </button>
-              <button className="bg-white/10 text-white border border-white/10 px-10 py-4 rounded-2xl font-bold hover:bg-white/20 transition-all backdrop-blur-sm">
-                View Pricing
-              </button>
+              <a 
+                href="https://t.me/sanjarmultilevel"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white/10 text-white border border-white/10 px-10 py-4 rounded-2xl font-bold hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
+              >
+                <Send size={16} />
+                <span>Telegram Bot (@sanjarmultilevel)</span>
+              </a>
             </div>
           </div>
         </div>
@@ -716,196 +871,18 @@ function CTA({ onSignUp }: { onSignUp: () => void }) {
   );
 }
 
-function SignUpModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (name: string) => void }) {
-  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-
-    // Mock API call and unique username check
-    setTimeout(() => {
-      const existingUsers = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
-      
-      const usernameExists = existingUsers.some((u: any) => u.name.toLowerCase() === formData.name.toLowerCase());
-      
-      if (usernameExists) {
-        setError("This username is already taken. Please choose another one.");
-        setIsLoading(false);
-        return;
-      }
-
-      // Save new user
-      existingUsers.push(formData);
-      localStorage.setItem('registeredUsers', JSON.stringify(existingUsers));
-
-      setIsLoading(false);
-      setIsSuccess(true);
-      onSuccess(formData.name);
-    }, 1000);
-  };
-
-  const handleGoogleSignIn = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSuccess(true);
-      onSuccess("Google User");
-    }, 1000);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-      />
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
-      >
-        <button 
-          onClick={onClose}
-          className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 transition-colors"
-        >
-          <X size={24} />
-        </button>
-
-        <div className="p-8 md:p-12">
-          {isSuccess ? (
-            <div className="text-center py-8">
-              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
-                <CheckCircle2 size={40} />
-              </div>
-              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Welcome aboard!</h3>
-              <p className="text-slate-500 mb-8">
-                Your account has been created successfully. You can now start your English journey.
-              </p>
-              <button 
-                onClick={onClose}
-                className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-4 rounded-2xl font-bold hover:shadow-lg hover:shadow-pink-500/30 transition-all"
-              >
-                Go to Dashboard
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="text-center mb-8">
-                <h3 className="text-3xl font-display font-bold text-slate-900 mb-2">Create Account</h3>
-                <p className="text-slate-500">Join Aethel.io today</p>
-              </div>
-
-              <div className="mb-6">
-                <button 
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoading}
-                  className="w-full bg-white border border-slate-200 text-slate-700 py-3.5 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-3 disabled:opacity-70"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Sign in with Google
-                </button>
-              </div>
-
-              <div className="relative flex items-center py-2 mb-6">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">or continue with email</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
-              {error && (
-                <div className="mb-6 p-4 bg-rose-50 text-rose-600 rounded-xl text-sm font-medium border border-rose-100 flex items-start gap-2">
-                  <X size={16} className="mt-0.5 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Username</label>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input 
-                      required
-                      type="text" 
-                      placeholder="johndoe123"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Email Address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input 
-                      required
-                      type="email" 
-                      placeholder="john@example.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 ml-1">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input 
-                      required
-                      type="password" 
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <button 
-                  disabled={isLoading}
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-4 rounded-2xl font-bold hover:shadow-lg hover:shadow-pink-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    "Create Account"
-                  )}
-                </button>
-              </form>
-
-              <p className="text-center text-sm text-slate-500 mt-8">
-                Already have an account? <button className="text-pink-600 font-bold hover:underline">Sign In</button>
-              </p>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function LearningDashboard({ onBack, userName }: { onBack: () => void, userName: string | null }) {
+function LearningDashboard({ 
+  onBack, 
+  currentUser,
+  onLogout 
+}: { 
+  onBack: () => void;
+  currentUser: UserProfile | null;
+  onLogout: () => void;
+}) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
+  const userName = currentUser?.name || "Learner";
+
 
   const sections = [
     {
@@ -943,8 +920,8 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
     },
     {
       id: "speaking",
-      title: "Speaking",
-      description: "Examiner-style questions with performance-based feedback and native-like tips.",
+      title: "Speaking Simulator",
+      description: "Mic check reperformance, Part 1.1 (3 timed B1 questions), and Part 2 contrasting picture test with AI examiner.",
       icon: <Mic size={24} />,
       color: "purple",
       bg: "bg-purple-50",
@@ -955,6 +932,13 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
   ];
 
   const apps = [
+    {
+      id: "writing",
+      title: "AI Essay Examiner",
+      description: "CEFR & IELTS Band Upgrade",
+      icon: <PenTool className="text-fuchsia-600" />,
+      bg: "bg-fuchsia-50"
+    },
     {
       id: "ai-assistant",
       title: "AI English Assistant",
@@ -971,8 +955,8 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
     },
     {
       id: "speaking",
-      title: "Speak & Improve",
-      description: "Real-Time Feedback",
+      title: "Speaking Simulator",
+      description: "Mic Check & Parts 1.1 + 2",
       icon: <Mic className="text-fuchsia-600" />,
       bg: "bg-fuchsia-50"
     },
@@ -1048,11 +1032,12 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
     }
   ];
 
+  if (activeApp === 'writing') return <WritingApp onBack={() => setActiveApp(null)} currentUser={currentUser} />;
   if (activeApp === 'quiz') return <SmartQuizApp onBack={() => setActiveApp(null)} />;
   if (activeApp === 'roadmap') return <RoadmapApp onBack={() => setActiveApp(null)} />;
   if (activeApp === 'ai-assistant') return <AIAssistantApp onBack={() => setActiveApp(null)} />;
   if (activeApp === 'listening') return <ListeningApp onBack={() => setActiveApp(null)} />;
-  if (activeApp === 'speaking') return <SpeakingApp onBack={() => setActiveApp(null)} />;
+  if (activeApp === 'speaking') return <SpeakingApp onBack={() => setActiveApp(null)} currentUser={currentUser} />;
   if (activeApp === 'progress') return <ProgressApp onBack={() => setActiveApp(null)} />;
   if (activeApp === 'timer') return <TimerApp onBack={() => setActiveApp(null)} />;
   if (activeApp === 'summary') return <SummaryApp onBack={() => setActiveApp(null)} />;
@@ -1065,17 +1050,45 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
   return (
     <section className="py-12 md:py-20 bg-slate-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-12">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
           <div>
             <button 
               onClick={onBack}
-              className="flex items-center gap-2 text-slate-500 hover:text-pink-600 font-medium mb-4 transition-colors"
+              className="flex items-center gap-2 text-slate-500 hover:text-pink-600 font-medium mb-4 transition-colors cursor-pointer"
             >
-              <ArrowLeft size={20} /> Back to Home
+              <ArrowLeft size={20} /> Asosiy sahifaga qaytish
             </button>
-            <h2 className="text-4xl font-display font-bold text-slate-900">Your Learning Journey</h2>
-            <p className="text-slate-500 mt-2">Select a skill to start practicing today.</p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-slate-900">Your Learning Journey</h2>
+            <p className="text-slate-500 mt-1">Select a skill to start practicing today.</p>
           </div>
+
+          {currentUser && (
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between md:justify-start gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-pink-200">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-900 text-sm">{currentUser.name}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full" title="Telegram orqali tasdiqlangan">
+                      <Send size={10} /> Telegram Verified
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">{currentUser.telegramUsername}</p>
+                </div>
+              </div>
+              
+              <button
+                onClick={onLogout}
+                className="text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
+                title="Tizimdan chiqish"
+              >
+                <LogOut size={14} />
+                <span className="hidden sm:inline">Chiqish</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 mb-20">
@@ -1095,7 +1108,10 @@ function LearningDashboard({ onBack, userName }: { onBack: () => void, userName:
                 <p className="text-slate-500 mb-8 leading-relaxed">
                   {section.description}
                 </p>
-                <button className={`px-8 py-3.5 ${section.accent} text-white rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg shadow-${section.color}-200 active:scale-95`}>
+                <button 
+                  onClick={() => setActiveApp(section.id === 'reading' ? 'journey' : section.id === 'writing' ? 'writing' : section.id)}
+                  className={`px-8 py-3.5 ${section.accent} text-white rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg shadow-${section.color}-200 active:scale-95 cursor-pointer`}
+                >
                   Start Journey
                 </button>
               </div>
@@ -1160,17 +1176,17 @@ function Footer() {
                 <Globe size={18} />
               </div>
               <span className="text-xl font-display font-bold tracking-tight text-slate-900">
-                Aethel<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">.io</span>
+                Sanjars<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-rose-500">English</span>
               </span>
             </div>
             <p className="text-slate-500 text-sm leading-relaxed mb-6">
               Empowering learners worldwide to master the English language through technology and expert teaching.
             </p>
             <div className="flex gap-4">
-              <a href="https://instagram.com/aethel.io" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-pink-600 hover:border-pink-100 hover:bg-pink-50 transition-all">
+              <a href="https://instagram.com/sanjarsenglish" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-pink-600 hover:border-pink-100 hover:bg-pink-50 transition-all" title="Instagram">
                 <Instagram size={20} />
               </a>
-              <a href="https://t.me/isomiddinov11" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-pink-600 hover:border-pink-100 hover:bg-pink-50 transition-all">
+              <a href="https://t.me/sanjarmultilevel" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-pink-600 hover:border-pink-100 hover:bg-pink-50 transition-all" title="Telegram">
                 <Send size={20} />
               </a>
             </div>
@@ -1199,13 +1215,13 @@ function Footer() {
                 <div className="w-8 h-8 bg-pink-50 rounded-lg flex items-center justify-center text-pink-600">
                   <Send size={16} />
                 </div>
-                <a href="https://t.me/isomiddinov11" target="_blank" rel="noopener noreferrer" className="hover:text-pink-600 transition-colors">@isomiddinov11</a>
+                <a href="https://t.me/sanjarmultilevel" target="_blank" rel="noopener noreferrer" className="hover:text-pink-600 transition-colors">@sanjarmultilevel</a>
               </li>
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-pink-50 rounded-lg flex items-center justify-center text-pink-600">
                   <Instagram size={16} />
                 </div>
-                <a href="https://instagram.com/aethel.io" target="_blank" rel="noopener noreferrer" className="hover:text-pink-600 transition-colors">@aethel.io</a>
+                <a href="https://instagram.com/sanjarsenglish" target="_blank" rel="noopener noreferrer" className="hover:text-pink-600 transition-colors">@sanjarsenglish</a>
               </li>
             </ul>
           </div>
@@ -1228,7 +1244,7 @@ function Footer() {
         
         <div className="pt-8 border-t border-slate-200 text-center">
           <p className="text-sm text-slate-500">
-            © {new Date().getFullYear()} Aethel.io. All rights reserved.
+            © {new Date().getFullYear()} SanjarsEnglish. All rights reserved.
           </p>
         </div>
       </div>
@@ -1588,45 +1604,6 @@ function ListeningApp({ onBack }: { onBack: () => void }) {
             ))}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function SpeakingApp({ onBack }: { onBack: () => void }) {
-  const [isRecording, setIsRecording] = useState(false);
-  
-  return (
-    <div className="max-w-4xl mx-auto py-12 px-4">
-      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-pink-600 font-medium mb-8 transition-colors">
-        <ArrowLeft size={20} /> Back to Dashboard
-      </button>
-      <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center">
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-fuchsia-50 text-fuchsia-600 rounded-xl flex items-center justify-center">
-            <Mic size={24} />
-          </div>
-          <div className="text-left">
-            <h2 className="text-2xl font-bold text-slate-900">Speak & Improve</h2>
-            <p className="text-slate-500">Read the sentence aloud</p>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 rounded-2xl p-8 mb-8">
-          <p className="text-2xl font-medium text-slate-800 leading-relaxed">
-            "The quick brown fox jumps over the lazy dog."
-          </p>
-        </div>
-
-        <button 
-          onClick={() => setIsRecording(!isRecording)}
-          className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 transition-all shadow-xl ${isRecording ? 'bg-rose-500 text-white shadow-rose-200 animate-pulse' : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-pink-200 hover:scale-105'}`}
-        >
-          <Mic size={40} />
-        </button>
-        <p className="text-slate-500 font-medium">
-          {isRecording ? "Listening... Click to stop." : "Click the microphone to start recording"}
-        </p>
       </div>
     </div>
   );
@@ -2216,7 +2193,7 @@ function CertificateApp({ onBack, userName }: { onBack: () => void, userName: st
       });
 
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Aethel.io_Certificate_${userName.replace(/\s+/g, '_')}.pdf`);
+      pdf.save(`SanjarsEnglish_Certificate_${userName.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error("Certificate Generation Error:", error);
     } finally {
@@ -2327,7 +2304,7 @@ function CertificateApp({ onBack, userName }: { onBack: () => void, userName: st
                           <Globe size={24} />
                         </div>
                         <span className="text-2xl font-bold tracking-tight text-slate-900">
-                          Aethel<span className="text-pink-600">.io</span>
+                          Sanjars<span className="text-pink-600">English</span>
                         </span>
                       </div>
                       <div className="h-px bg-gradient-to-r from-transparent via-pink-200 to-transparent w-64 mx-auto" />
@@ -2343,7 +2320,7 @@ function CertificateApp({ onBack, userName }: { onBack: () => void, userName: st
                         {userName}
                       </h2>
                       <p className="text-slate-600 text-lg max-w-lg mx-auto leading-relaxed">
-                        has successfully maintained a consistent learning habit for <span className="font-bold text-slate-900">30 consecutive days</span> on the Aethel.io platform.
+                        has successfully maintained a consistent learning habit for <span className="font-bold text-slate-900">30 consecutive days</span> on the SanjarsEnglish platform.
                       </p>
                     </div>
 

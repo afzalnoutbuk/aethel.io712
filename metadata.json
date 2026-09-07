@@ -1,5 +1,6 @@
 {
-  "name": "Aethel.io",
-  "description": "A modern, interactive platform for learning English with personalized courses and progress tracking.",
-  "requestFramePermissions": []
+  "name": "SanjarsEnglish",
+  "description": "Interactive English Learning Platform featuring a 6-test Speaking Exam Schedule (24 questions, mic check, picture comparison), AI Essay Examiner, and student portal.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
